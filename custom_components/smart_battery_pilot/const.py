@@ -37,6 +37,20 @@ CONF_PV_FORECAST_TODAY = "pv_forecast_today"
 CONF_PV_FORECAST_TOMORROW = "pv_forecast_tomorrow"
 CONF_PV_POWER_ENTITY = "pv_power_entity"
 
+# Step: Phase balancing (optional)
+CONF_ENABLE_PHASE_BALANCING = "enable_phase_balancing"
+CONF_PHASE_MONITORING_MODE = "phase_monitoring_mode"  # "per_phase" or "overall"
+CONF_PHASE_SELECTION = "phase_selection"  # "L1", "L2", "L3", or "all"
+CONF_PHASE_CURRENT_L1 = "phase_current_l1"
+CONF_PHASE_CURRENT_L2 = "phase_current_l2"
+CONF_PHASE_CURRENT_L3 = "phase_current_l3"
+CONF_PHASE_VOLTAGE_L1 = "phase_voltage_l1"
+CONF_PHASE_VOLTAGE_L2 = "phase_voltage_l2"
+CONF_PHASE_VOLTAGE_L3 = "phase_voltage_l3"
+CONF_MAX_CURRENT_PER_PHASE = "max_current_per_phase"  # Amperes
+CONF_PHASE_VOLTAGE = "phase_voltage"  # Volts (default 230V)
+CONF_PHASE_SAFETY_MARGIN = "phase_safety_margin"  # Percentage (default 10%)
+
 # Options
 CONF_SPREAD_THRESHOLD = "spread_threshold"  # EUR/kWh min price spread
 CONF_DISCHARGE_MODE = "discharge_mode"
@@ -45,6 +59,14 @@ CONF_TRAINING_DAYS = "training_days"
 
 DISCHARGE_MODE_SELF_CONSUMPTION = "self_consumption"
 DISCHARGE_MODE_EXPORT = "export"
+
+# Phase balancing modes
+PHASE_MONITORING_PER_PHASE = "per_phase"
+PHASE_MONITORING_OVERALL = "overall"
+PHASE_SELECTION_L1 = "L1"
+PHASE_SELECTION_L2 = "L2"
+PHASE_SELECTION_L3 = "L3"
+PHASE_SELECTION_ALL = "all"
 
 # --- Defaults ---
 DEFAULT_PRICE_OFFSET = 0.0
@@ -56,6 +78,14 @@ DEFAULT_SPREAD_THRESHOLD = 0.20
 DEFAULT_DISCHARGE_MODE = DISCHARGE_MODE_SELF_CONSUMPTION
 DEFAULT_DRY_RUN = True
 DEFAULT_TRAINING_DAYS = 60
+
+# Phase balancing defaults
+DEFAULT_ENABLE_PHASE_BALANCING = False
+DEFAULT_PHASE_MONITORING_MODE = PHASE_MONITORING_PER_PHASE
+DEFAULT_PHASE_SELECTION = PHASE_SELECTION_L2  # User's Marstek is on Phase B (L2)
+DEFAULT_MAX_CURRENT_PER_PHASE = 25  # Amperes (user's spec)
+DEFAULT_PHASE_VOLTAGE = 230  # Volts (European standard)
+DEFAULT_PHASE_SAFETY_MARGIN = 10  # 10% safety margin
 
 # --- Plan actions ---
 ACTION_CHARGE = "charge"

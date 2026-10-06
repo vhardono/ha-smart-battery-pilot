@@ -23,12 +23,24 @@ from .const import (
     CONF_DISCHARGE_MODE,
     CONF_DRY_RUN,
     CONF_EFFICIENCY,
+    CONF_ENABLE_PHASE_BALANCING,
     CONF_FEED_IN_TARIFF,
     CONF_HAS_HEAT_PUMP,
     CONF_MAX_CHARGE_POWER_W,
     CONF_MAX_DISCHARGE_POWER_W,
     CONF_MAX_SOC,
     CONF_MIN_SOC,
+    CONF_PHASE_CURRENT_L1,
+    CONF_PHASE_CURRENT_L2,
+    CONF_PHASE_CURRENT_L3,
+    CONF_PHASE_MONITORING_MODE,
+    CONF_PHASE_SAFETY_MARGIN,
+    CONF_PHASE_SELECTION,
+    CONF_PHASE_VOLTAGE,
+    CONF_PHASE_VOLTAGE_L1,
+    CONF_PHASE_VOLTAGE_L2,
+    CONF_PHASE_VOLTAGE_L3,
+    CONF_MAX_CURRENT_PER_PHASE,
     CONF_PRICE_ENTITY,
     CONF_PRICE_OFFSET,
     CONF_PV_FORECAST_TODAY,
@@ -45,15 +57,27 @@ from .const import (
     DEFAULT_DISCHARGE_MODE,
     DEFAULT_DRY_RUN,
     DEFAULT_EFFICIENCY,
+    DEFAULT_ENABLE_PHASE_BALANCING,
     DEFAULT_FEED_IN_TARIFF,
+    DEFAULT_MAX_CURRENT_PER_PHASE,
     DEFAULT_MAX_SOC,
     DEFAULT_MIN_SOC,
+    DEFAULT_PHASE_MONITORING_MODE,
+    DEFAULT_PHASE_SAFETY_MARGIN,
+    DEFAULT_PHASE_SELECTION,
+    DEFAULT_PHASE_VOLTAGE,
     DEFAULT_PRICE_OFFSET,
     DEFAULT_SPREAD_THRESHOLD,
     DEFAULT_TRAINING_DAYS,
     DISCHARGE_MODE_EXPORT,
     DISCHARGE_MODE_SELF_CONSUMPTION,
     DOMAIN,
+    PHASE_MONITORING_OVERALL,
+    PHASE_MONITORING_PER_PHASE,
+    PHASE_SELECTION_ALL,
+    PHASE_SELECTION_L1,
+    PHASE_SELECTION_L2,
+    PHASE_SELECTION_L3,
 )
 from .price_adapters import detect_adapter
 
@@ -180,6 +204,79 @@ def schema_pv(d: dict[str, Any]) -> vol.Schema:
     )
 
 
+def schema_phase_balancing(d: dict[str, Any]) -> vol.Schema:
+    """Schema for phase balancing configuration."""
+    def num(minimum, maximum, step, unit=None):
+        return selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=minimum, max=maximum, step=step, unit_of_measurement=unit, mode="box"
+            )
+        )
+
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_ENABLE_PHASE_BALANCING,
+                default=d.get(CONF_ENABLE_PHASE_BALANCING, DEFAULT_ENABLE_PHASE_BALANCING),
+            ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_PHASE_MONITORING_MODE,
+                default=d.get(CONF_PHASE_MONITORING_MODE, DEFAULT_PHASE_MONITORING_MODE),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[PHASE_MONITORING_PER_PHASE, PHASE_MONITORING_OVERALL],
+                    translation_key="phase_monitoring_mode",
+                )
+            ),
+            vol.Required(
+                CONF_PHASE_SELECTION,
+                default=d.get(CONF_PHASE_SELECTION, DEFAULT_PHASE_SELECTION),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[PHASE_SELECTION_L1, PHASE_SELECTION_L2, PHASE_SELECTION_L3, PHASE_SELECTION_ALL],
+                    translation_key="phase_selection",
+                )
+            ),
+            vol.Optional(
+                CONF_PHASE_CURRENT_L1,
+                description=_sugg(d.get(CONF_PHASE_CURRENT_L1)),
+            ): _ENTITY,
+            vol.Optional(
+                CONF_PHASE_CURRENT_L2,
+                description=_sugg(d.get(CONF_PHASE_CURRENT_L2)),
+            ): _ENTITY,
+            vol.Optional(
+                CONF_PHASE_CURRENT_L3,
+                description=_sugg(d.get(CONF_PHASE_CURRENT_L3)),
+            ): _ENTITY,
+            vol.Optional(
+                CONF_PHASE_VOLTAGE_L1,
+                description=_sugg(d.get(CONF_PHASE_VOLTAGE_L1)),
+            ): _ENTITY,
+            vol.Optional(
+                CONF_PHASE_VOLTAGE_L2,
+                description=_sugg(d.get(CONF_PHASE_VOLTAGE_L2)),
+            ): _ENTITY,
+            vol.Optional(
+                CONF_PHASE_VOLTAGE_L3,
+                description=_sugg(d.get(CONF_PHASE_VOLTAGE_L3)),
+            ): _ENTITY,
+            vol.Required(
+                CONF_MAX_CURRENT_PER_PHASE,
+                default=d.get(CONF_MAX_CURRENT_PER_PHASE, DEFAULT_MAX_CURRENT_PER_PHASE),
+            ): num(1, 100, 1, "A"),
+            vol.Required(
+                CONF_PHASE_VOLTAGE,
+                default=d.get(CONF_PHASE_VOLTAGE, DEFAULT_PHASE_VOLTAGE),
+            ): num(200, 250, 1, "V"),
+            vol.Required(
+                CONF_PHASE_SAFETY_MARGIN,
+                default=d.get(CONF_PHASE_SAFETY_MARGIN, DEFAULT_PHASE_SAFETY_MARGIN),
+            ): num(0, 50, 1, "%"),
+        }
+    )
+
+
 def schema_tuning(d: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
@@ -222,6 +319,20 @@ STEP_FIELDS: dict[str, list[str]] = {
     "control": [CONF_SCRIPT_CHARGE, CONF_SCRIPT_IDLE, CONF_SCRIPT_AUTO, CONF_SCRIPT_EXPORT],
     "consumption": [CONF_CONSUMPTION_ENTITY, CONF_TEMPERATURE_ENTITY, CONF_HAS_HEAT_PUMP],
     "pv": [CONF_PV_FORECAST_TODAY, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER_ENTITY],
+    "phase_balancing": [
+        CONF_ENABLE_PHASE_BALANCING,
+        CONF_PHASE_MONITORING_MODE,
+        CONF_PHASE_SELECTION,
+        CONF_PHASE_CURRENT_L1,
+        CONF_PHASE_CURRENT_L2,
+        CONF_PHASE_CURRENT_L3,
+        CONF_PHASE_VOLTAGE_L1,
+        CONF_PHASE_VOLTAGE_L2,
+        CONF_PHASE_VOLTAGE_L3,
+        CONF_MAX_CURRENT_PER_PHASE,
+        CONF_PHASE_VOLTAGE,
+        CONF_PHASE_SAFETY_MARGIN,
+    ],
     "tuning": [CONF_SPREAD_THRESHOLD, CONF_DISCHARGE_MODE, CONF_TRAINING_DAYS],
 }
 
@@ -331,6 +442,15 @@ class SBPConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_pv(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self._data.update(user_input)
+            return await self.async_step_phase_balancing()
+        return self.async_show_form(step_id="pv", data_schema=schema_pv(self._data))
+
+    async def async_step_phase_balancing(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 6: phase balancing configuration (optional)."""
+        if user_input is not None:
+            self._data.update(user_input)
             return self.async_create_entry(
                 title="Smart Battery Pilot",
                 data=self._data,
@@ -341,7 +461,9 @@ class SBPConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_TRAINING_DAYS: DEFAULT_TRAINING_DAYS,
                 },
             )
-        return self.async_show_form(step_id="pv", data_schema=schema_pv(self._data))
+        return self.async_show_form(
+            step_id="phase_balancing", data_schema=schema_phase_balancing(self._data)
+        )
 
     @staticmethod
     @callback
@@ -374,6 +496,7 @@ class SBPOptionsFlow(OptionsFlow):
                 "control",
                 "consumption",
                 "pv",
+                "phase_balancing",
                 "apply",
             ],
         )
@@ -453,6 +576,16 @@ class SBPOptionsFlow(OptionsFlow):
         if user_input is not None:
             return await self._save_step("pv", user_input)
         return self.async_show_form(step_id="pv", data_schema=schema_pv(self._merged))
+
+    async def async_step_phase_balancing(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure phase balancing settings."""
+        if user_input is not None:
+            return await self._save_step("phase_balancing", user_input)
+        return self.async_show_form(
+            step_id="phase_balancing", data_schema=schema_phase_balancing(self._merged)
+        )
 
     async def async_step_tuning(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}

@@ -15,10 +15,28 @@ from .const import (
     ACTION_CHARGE,
     ACTION_EXPORT,
     ACTION_IDLE,
+    CONF_ENABLE_PHASE_BALANCING,
+    CONF_MAX_CURRENT_PER_PHASE,
+    CONF_PHASE_CURRENT_L1,
+    CONF_PHASE_CURRENT_L2,
+    CONF_PHASE_CURRENT_L3,
+    CONF_PHASE_MONITORING_MODE,
+    CONF_PHASE_SAFETY_MARGIN,
+    CONF_PHASE_SELECTION,
+    CONF_PHASE_VOLTAGE,
+    CONF_PHASE_VOLTAGE_L1,
+    CONF_PHASE_VOLTAGE_L2,
+    CONF_PHASE_VOLTAGE_L3,
     CONF_SCRIPT_AUTO,
     CONF_SCRIPT_CHARGE,
     CONF_SCRIPT_EXPORT,
     CONF_SCRIPT_IDLE,
+    PHASE_MONITORING_OVERALL,
+    PHASE_MONITORING_PER_PHASE,
+    PHASE_SELECTION_ALL,
+    PHASE_SELECTION_L1,
+    PHASE_SELECTION_L2,
+    PHASE_SELECTION_L3,
     SCRIPT_CALL_TIMEOUT_SECONDS,
 )
 from .coordinator import SBPCoordinator
@@ -48,6 +66,127 @@ class PlanExecutor:
         # scheduled and would otherwise re-arm the timer and re-apply a forced
         # mode behind an entry that is gone.
         self._stopped = False
+
+    def _calculate_phase_balanced_power(self, planned_power_w: float) -> float:
+        """Calculate charge power adjusted for phase load balancing.
+        
+        Reads current phase loads from Tibber Pulse sensors and adjusts the
+        planned charge power to avoid overloading the phase where the battery
+        is connected.
+        """
+        # Check if phase balancing is enabled
+        if not self.coordinator.conf(CONF_ENABLE_PHASE_BALANCING):
+            return planned_power_w
+
+        try:
+            monitoring_mode = self.coordinator.conf(CONF_PHASE_MONITORING_MODE)
+            phase_selection = self.coordinator.conf(CONF_PHASE_SELECTION)
+            max_current = self.coordinator.conf(CONF_MAX_CURRENT_PER_PHASE)
+            voltage = self.coordinator.conf(CONF_PHASE_VOLTAGE)
+            safety_margin = self.coordinator.conf(CONF_PHASE_SAFETY_MARGIN) / 100.0
+
+            if monitoring_mode == PHASE_MONITORING_PER_PHASE:
+                # Per-phase monitoring based on user's phase selection
+                current_load = 0.0
+                phase_voltage = voltage
+
+                if phase_selection == PHASE_SELECTION_L1:
+                    current_entity = self.coordinator.conf(CONF_PHASE_CURRENT_L1)
+                    voltage_entity = self.coordinator.conf(CONF_PHASE_VOLTAGE_L1)
+                elif phase_selection == PHASE_SELECTION_L2:
+                    current_entity = self.coordinator.conf(CONF_PHASE_CURRENT_L2)
+                    voltage_entity = self.coordinator.conf(CONF_PHASE_VOLTAGE_L2)
+                elif phase_selection == PHASE_SELECTION_L3:
+                    current_entity = self.coordinator.conf(CONF_PHASE_CURRENT_L3)
+                    voltage_entity = self.coordinator.conf(CONF_PHASE_VOLTAGE_L3)
+                else:
+                    # PHASE_SELECTION_ALL - calculate total across all phases
+                    current_load = self._get_total_phase_current()
+                    phase_voltage = voltage
+                    current_entity = None
+                    voltage_entity = None
+
+                if current_entity and voltage_entity:
+                    current_state = self.hass.states.get(current_entity)
+                    voltage_state = self.hass.states.get(voltage_entity)
+                    
+                    if current_state and current_state.state not in (None, "unknown", "unavailable"):
+                        current_load = float(current_state.state)
+                    if voltage_state and voltage_state.state not in (None, "unknown", "unavailable"):
+                        phase_voltage = float(voltage_state.state)
+
+                # Calculate available power on the phase
+                max_phase_power = max_current * phase_voltage
+                current_power = current_load * phase_voltage
+                available_power = max_phase_power - current_power
+                
+                # Apply safety margin
+                safe_available_power = available_power * (1 - safety_margin)
+
+                # Ensure we don't exceed planned power or go negative
+                adjusted_power = min(planned_power_w, max(0, safe_available_power))
+
+                if adjusted_power < planned_power_w:
+                    _LOGGER.info(
+                        "Phase balancing: reduced charge power from %.0f W to %.0f W "
+                        "(phase load: %.1f A, available: %.0f W)",
+                        planned_power_w,
+                        adjusted_power,
+                        current_load,
+                        safe_available_power,
+                    )
+
+                return adjusted_power
+
+            elif monitoring_mode == PHASE_MONITORING_OVERALL:
+                # Overall monitoring - check total phase loads
+                total_current = self._get_total_phase_current()
+                total_power = total_current * voltage
+                max_total_power = max_current * 3 * voltage  # Assume 3 phases
+                available_power = max_total_power - total_power
+                safe_available_power = available_power * (1 - safety_margin)
+                
+                adjusted_power = min(planned_power_w, max(0, safe_available_power))
+
+                if adjusted_power < planned_power_w:
+                    _LOGGER.info(
+                        "Overall phase balancing: reduced charge power from %.0f W to %.0f W "
+                        "(total load: %.1f A, available: %.0f W)",
+                        planned_power_w,
+                        adjusted_power,
+                        total_current,
+                        safe_available_power,
+                    )
+
+                return adjusted_power
+
+        except Exception as e:
+            _LOGGER.error("Error calculating phase-balanced power: %s", e)
+            # Fallback to planned power on error
+            return planned_power_w
+
+        return planned_power_w
+
+    def _get_total_phase_current(self) -> float:
+        """Get total current across all three phases."""
+        total_current = 0.0
+        
+        phase_currents = [
+            self.coordinator.conf(CONF_PHASE_CURRENT_L1),
+            self.coordinator.conf(CONF_PHASE_CURRENT_L2),
+            self.coordinator.conf(CONF_PHASE_CURRENT_L3),
+        ]
+        
+        for current_entity in phase_currents:
+            if current_entity:
+                state = self.hass.states.get(current_entity)
+                if state and state.state not in (None, "unknown", "unavailable"):
+                    try:
+                        total_current += float(state.state)
+                    except (ValueError, TypeError):
+                        pass
+        
+        return total_current
 
     @property
     def _last_applied(self) -> str | None:
@@ -180,10 +319,16 @@ class PlanExecutor:
                 _LOGGER.info("Dry-run enabled - restoring battery auto mode")
                 if await self._call_script(ACTION_AUTO, 0.0):
                     await self._remember(ACTION_AUTO)
+            
+            # Apply phase balancing for dry-run logging
+            adjusted_power = slot.power_w
+            if action == ACTION_CHARGE:
+                adjusted_power = self._calculate_phase_balanced_power(slot.power_w)
+            
             _LOGGER.info(
                 "DRY RUN: would apply action '%s' (%.0f W) for slot %s - %s",
                 action,
-                slot.power_w,
+                adjusted_power,
                 slot.start.isoformat(),
                 slot.end.isoformat(),
             )
@@ -195,7 +340,12 @@ class PlanExecutor:
         ):
             return
 
-        if await self._call_script(action, slot.power_w):
+        # Apply phase balancing to charge power
+        adjusted_power = slot.power_w
+        if action == ACTION_CHARGE:
+            adjusted_power = self._calculate_phase_balanced_power(slot.power_w)
+
+        if await self._call_script(action, adjusted_power):
             await self._remember(action)
             return
         if action != ACTION_AUTO and await self._call_script(ACTION_AUTO, 0.0):

@@ -1,14 +1,14 @@
 {
   "domain": "smart_battery_pilot",
-  "name": "Smart Battery Pilot",
+  "name": "Smart Battery Pilot (Phase Balancing)",
   "after_dependencies": ["sun"],
-  "codeowners": ["@cygnusb"],
+  "codeowners": ["@vhardano", "@cygnusb"],
   "config_flow": true,
   "dependencies": ["recorder", "http", "frontend"],
-  "documentation": "https://github.com/cygnusb/ha-smart-battery-pilot",
+  "documentation": "https://github.com/vhardono/ha-smart-battery-pilot",
   "integration_type": "service",
   "iot_class": "calculated",
-  "issue_tracker": "https://github.com/cygnusb/ha-smart-battery-pilot/issues",
+  "issue_tracker": "https://github.com/vhardono/ha-smart-battery-pilot/issues",
   "requirements": [],
-  "version": "0.7.2"
+  "version": "0.8.0-phase-balancing"
 }

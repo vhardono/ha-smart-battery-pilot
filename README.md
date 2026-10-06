@@ -29,6 +29,37 @@ combination that can be controlled from Home Assistant (Fronius, Victron, SMA,
 Sungrow, E3DC, …). See [docs/examples](docs/examples/) for ready-to-use
 vendor configurations.
 
+## Phase Balancing Feature (Enhanced Fork)
+
+This enhanced version includes **phase load balancing** for three-phase systems:
+- **Per-phase monitoring**: Monitor individual phase loads via current/voltage sensors
+- **Automatic power adjustment**: Dynamically adjust charging power to avoid phase overload
+- **Tibber Pulse integration**: Uses real-time phase data from Tibber Pulse meters
+- **Flexible configuration**: Support for per-phase or overall monitoring modes
+- **Safety margins**: Configurable safety margins to prevent overloading
+
+Perfect for batteries connected to a single phase of a three-phase system where
+you need to avoid overloading that specific phase during high-power charging.
+
+### Phase Balancing Configuration
+
+The phase balancing feature adds a new configuration step with these options:
+
+- **Enable phase balancing**: Turn the feature on/off
+- **Phase monitoring mode**: Choose between "per_phase" or "overall" monitoring
+- **Phase selection**: Select which phase the battery is connected to (L1/L2/L3/all)
+- **Phase current/voltage sensors**: Tibber Pulse entities for each phase
+- **Max current per phase**: Maximum allowed current for each phase (e.g., 25A)
+- **Phase voltage**: Voltage per phase (typically 230V)
+- **Safety margin**: Percentage safety margin (default 10%)
+
+The integration automatically:
+- Reads current phase load from configured sensors
+- Calculates available power capacity on the monitored phase(s)
+- Adjusts charging power to stay within limits
+- Logs all power adjustments for monitoring
+- Falls back to planned power if sensors are unavailable
+
 ## How it works
 
 1. **Price forecast** — the price entity of your existing tariff integration is
@@ -61,10 +92,19 @@ vendor configurations.
 
 ## Installation (HACS)
 
+### Phase Balancing Fork Installation
+
+1. HACS → Integrations → ⋮ → *Custom repositories* →
+   `https://github.com/vhardono/ha-smart-battery-pilot` (category: Integration)
+2. Install **Smart Battery Pilot** and restart Home Assistant.
+3. Settings → Devices & Services → *Add Integration* → **Smart Battery Pilot**.
+
+### Original Upstream Installation
+
+For the original version without phase balancing:
 1. HACS → Integrations → ⋮ → *Custom repositories* →
    `https://github.com/cygnusb/ha-smart-battery-pilot` (category: Integration)
 2. Install **Smart Battery Pilot** and restart Home Assistant.
-3. Settings → Devices & Services → *Add Integration* → **Smart Battery Pilot**.
 
 ## Configuration
 
